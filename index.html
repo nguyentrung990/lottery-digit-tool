@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>Thống kê 2 chữ số cuối</title>
+<style>
+:root{--bg:#0b1020;--panel:#151d31;--panel2:#1d2942;--text:#edf2ff;--muted:#9eabc7;--line:#2b3958;--accent:#7dd3fc;--good:#86efac;--warn:#fbbf24;--bad:#fca5a5}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#0b1020,#111a2d);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:980px;margin:auto;padding:18px 14px 50px}h1{font-size:25px;line-height:1.2;margin:6px 0}h2{font-size:18px;margin:0 0 12px}.sub{color:var(--muted);font-size:13px;margin:8px 0 18px}
+.panel{background:rgba(21,29,49,.96);border:1px solid var(--line);border-radius:18px;padding:15px;margin:12px 0;box-shadow:0 8px 28px #0002}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.row>*{flex:1;min-width:130px}
+label{display:block;color:var(--muted);font-size:12px;margin:0 0 6px}
+input,select,textarea,button{font:inherit;border-radius:11px;border:1px solid var(--line);padding:11px 12px;background:#0d1527;color:var(--text);width:100%}
+textarea{min-height:110px;resize:vertical}button{background:#155e75;border-color:#0891b2;font-weight:650;cursor:pointer}button.secondary{background:var(--panel2);border-color:var(--line)}button:disabled{opacity:.5}
+.small{font-size:12px;color:var(--muted)}.status{padding:10px 12px;border-radius:12px;background:#0d1527;color:var(--muted);font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+.pills{display:flex;gap:7px;flex-wrap:wrap}.pill{border:1px solid var(--line);border-radius:999px;padding:6px 10px;color:var(--muted);font-size:12px}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.stat{background:#0d1527;border:1px solid var(--line);border-radius:13px;padding:12px}.stat b{font-size:23px;display:block}
+.tabs{display:flex;gap:8px;margin-bottom:12px}.tabs button{width:auto;flex:1}.tabs button.active{background:#075985;border-color:#38bdf8}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:9px 5px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:600}.num{font-variant-numeric:tabular-nums}
+.bar{height:9px;background:#26334e;border-radius:99px;overflow:hidden;min-width:50px}.bar span{display:block;height:100%;background:linear-gradient(90deg,#22d3ee,#818cf8);border-radius:99px}
+.digit{font-weight:800;font-size:16px}.tag{font-size:11px;color:var(--warn)}.warning{border-left:3px solid var(--warn);padding:9px 11px;background:#3a2a12;border-radius:7px;font-size:12px;color:#fde68a}
+canvas{width:100%;height:210px;display:block}.footer{font-size:12px;color:var(--muted);margin-top:15px}
+@media(min-width:700px){.stats{grid-template-columns:repeat(4,minmax(0,1fr))}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
+</style>
+</head>
+<body><main>
+<header>
+<div class="pills"><span class="pill">iPhone friendly</span><span class="pill">Hàng chục + hàng đơn vị</span><span class="pill">Không dự đoán chắc chắn</span></div>
+<h1>Thống kê 2 chữ số cuối</h1>
+<p class="sub">Nhập hoặc tải lịch sử kết quả, xem tần suất 0–9, chuỗi vắng mặt và so sánh 20 / 50 / 100 kỳ.</p>
+</header>
+<section class="panel">
+<h2>1. Nguồn dữ liệu</h2>
+<label>Website kết quả</label>
+<input id="source" value="https://cuvnws.canhujiamy.com/game/aspx/MainMenu_m.aspx?n=LotteryResults_m&gType=220&g=220" autocomplete="url">
+<div class="row" style="margin-top:10px">
+<button id="fetchBtn">Thử cập nhật từ website</button>
+<button class="secondary" id="demoBtn">Nạp dữ liệu mẫu</button>
+</div>
+<div id="status" class="status" style="margin-top:10px">Chưa tải dữ liệu. Thử cập nhật sẽ kiểm tra xem website có cho phép trình duyệt iPhone đọc dữ liệu hay không.</div>
+<p class="small">Nếu trình duyệt báo CORS hoặc không đọc được trang, cần một proxy/backend do bạn kiểm soát (xem README). Không có dữ liệu nào được bịa ra khi tải thất bại.</p>
+<label style="margin-top:12px">Hoặc dán kết quả / văn bản / HTML từ website (mỗi dòng một kết quả cũng được)</label>
+<textarea id="raw" placeholder="Ví dụ:
+2026-10-21  12345
+2026-10-20  67890
+2026-10-19  00123"></textarea>
+<div class="row" style="margin-top:9px">
+<button id="parseBtn">Đọc dữ liệu đã dán</button>
+<label style="margin:0"><span class="small">Hoặc nhập file CSV/TXT/HTML</span><input id="file" type="file" accept=".csv,.txt,.html,.htm,.json" style="margin-top:5px;padding:8px"></label>
+</div>
+<div class="row" style="margin-top:12px">
+<div><label>Ngày từ (tùy chọn)</label><input type="date" id="from"></div>
+<div><label>Ngày đến (tùy chọn)</label><input type="date" id="to"></div>
+</div>
+<div class="row" style="margin-top:10px">
+<div><label>Số kỳ gần nhất</label><select id="window"><option value="20">20 kỳ</option><option value="50">50 kỳ</option><option value="100" selected>100 kỳ</option><option value="all">Tất cả dữ liệu</option></select></div>
+<div><label>Sắp xếp bảng</label><select id="sort"><option value="least">Ít xuất hiện nhất</option><option value="most">Xuất hiện nhiều nhất</option><option value="digit">Theo chữ số 0–9</option></select></div>
+</div>
+</section>
+<section class="panel">
+<h2>2. Tổng quan dữ liệu</h2>
+<div class="stats">
+<div class="stat"><span class="small">Kết quả hợp lệ</span><b id="total">0</b><span class="small">trong phạm vi đang chọn</span></div>
+<div class="stat"><span class="small">Mốc dữ liệu mới nhất</span><b id="latest" style="font-size:17px">—</b><span class="small">theo ngày nếu có</span></div>
+<div class="stat"><span class="small">Chữ số hàng chục vắng mặt</span><b id="tensAbsent">—</b><span class="small">trong phạm vi</span></div>
+<div class="stat"><span class="small">Chữ số hàng đơn vị vắng mặt</span><b id="unitsAbsent">—</b><span class="small">trong phạm vi</span></div>
+</div>
+<p id="scope" class="small">Chưa có dữ liệu.</p>
+</section>
+<section class="panel">
+<h2>3. Tần suất chữ số</h2>
+<div class="tabs"><button id="tensTab" class="active">Hàng chục</button><button id="unitsTab" class="secondary">Hàng đơn vị</button></div>
+<div id="frequency"></div>
+<canvas id="chart" width="700" height="250" aria-label="Biểu đồ tần suất"></canvas>
+</section>
+<section class="panel">
+<h2>4. So sánh các khoảng</h2>
+<p class="small">So sánh tần suất từng chữ số trong 20, 50 và 100 kết quả gần nhất của tập dữ liệu đã tải. Nếu có ít kết quả hơn, tool sẽ ghi rõ số kỳ thực dùng.</p>
+<div id="compare"></div>
+</section>
+<section class="panel">
+<h2>5. Chuỗi vắng mặt</h2>
+<div class="twocol">
+<div><h2 style="font-size:15px">Hàng chục</h2><div id="gapsTens"></div></div>
+<div><h2 style="font-size:15px">Hàng đơn vị</h2><div id="gapsUnits"></div></div>
+</div>
+</section>
+<section class="panel">
+<h2>6. Lịch sử đã đọc</h2>
+<div class="row"><div><label>Số dòng hiển thị</label><select id="historyCount"><option>20</option><option>50</option><option selected>100</option></select></div><div><label>&nbsp;</label><button id="exportBtn" class="secondary">Xuất CSV đã phân tích</button></div></div>
+<div id="history" style="overflow-x:auto;margin-top:10px"></div>
+</section>
+<div class="warning">Lưu ý: tần suất thấp hoặc vắng mặt lâu không làm chữ số đó có xác suất thấp hơn ở kỳ tiếp theo nếu mỗi kỳ quay độc lập. Đây là công cụ mô tả dữ liệu lịch sử, không phải công cụ bảo đảm dự đoán.</div>
+<p class="footer">Dữ liệu được xử lý trong trình duyệt. File không gửi lịch sử của bạn đến nơi khác. Nguồn dữ liệu chỉ được coi là tự động cập nhật khi việc tải và phân tích thành công.</p>
+</main>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+let records = [], mode = 'tens';
+const sample = [
+ {date:'2026-10-21',raw:'12345'}, {date:'2026-10-20',raw:'67890'},
+ {date:'2026-10-19',raw:'11236'}, {date:'2026-10-18',raw:'45901'},
+ {date:'2026-10-17',raw:'78324'}, {date:'2026-10-16',raw:'01027'},
+ {date:'2026-10-15',raw:'99218'}, {date:'2026-10-14',raw:'63047'},
+ {date:'2026-10-13',raw:'54109'}, {date:'2026-10-12',raw:'82063'}
+];
+function status(s){$('status').textContent=s}
+function extractRecords(text) {
+ let out=[];
+ // Parse lines/HTML text. If a line contains date + numbers, prefer last 2-6 digit group.
+ const plain = String(text).replace(/<script[\s\S]*?<\/script>/gi,' ')
+  .replace(/<style[\s\S]*?<\/style>/gi,' ').replace(/<\/(tr|li|p|div|br|td|h\d)>/gi,'\n')
+  .replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ')
+  .replace(/&amp;/g,'&').replace(/\r/g,'\n');
+ for (const line of plain.split(/\n+/)) {
+   const s=line.replace(/\s+/g,' ').trim(); if(!s) continue;
+   const dateMatch=s.match(/\b(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})日?\b/);
+   const groups=[...s.matchAll(/(?<!\d)\d{2,6}(?!\d)/g)].map(m=>m[0]);
+   if(!groups.length) continue;
+   let value=groups[groups.length-1];
+   // avoid date fragments by using a number group not overlapping the date where possible
+   const candidates=groups.filter(g=>!dateMatch || !s.slice(dateMatch.index,dateMatch.index+dateMatch[0].length).includes(g));
+   if(candidates.length) value=candidates[candidates.length-1];
+   // reject years and common row numbers; keep final numeric group
+   if(value.length<2) continue;
+   let date='';
+   if(dateMatch) date=`${dateMatch[1]}-${String(dateMatch[2]).padStart(2,'0')}-${String(dateMatch[3]).padStart(2,'0')}`;
+   const digits=value.slice(-2);
+   if(!/^\d{2}$/.test(digits)) continue;
+   out.push({date,raw:value,tail:digits,sourceLine:s.slice(0,180)});
+ }
+ // De-duplicate identical adjacent result records
+ const dedup=[];
+ for(const r of out){if(!dedup.length || dedup[dedup.length-1].tail!==r.tail || dedup[dedup.length-1].date!==r.date) dedup.push(r)}
+ return dedup;
+}
+function normalize(arr) {
+ return arr.map(r=>{
+   let raw=String(r.raw ?? r.number ?? r.result ?? r.tail ?? '').replace(/\D/g,'');
+   if(!raw) return null;
+   let date=String(r.date ?? r.drawDate ?? '').slice(0,10);
+   return {date,raw,tail:raw.slice(-2).padStart(2,'0'),sourceLine:r.sourceLine||''};
+ }).filter(Boolean);
+}
+function filteredAll(){
+ let a=records.slice();
+ const f=$('from').value,t=$('to').value;
+ if(f) a=a.filter(r=>!r.date||r.date>=f);
+ if(t) a=a.filter(r=>!r.date||r.date<=t);
+ return a;
+}
+function selected(){
+ let a=filteredAll();
+ const w=$('window').value;
+ if(w!=='all') a=a.slice(-Number(w));
+ return a;
+}
+function counts(a,which){
+ const c=Array(10).fill(0);
+ for(const r of a){const n=Number(which==='tens'?r.tail[0]:r.tail[1]);if(Number.isInteger(n))c[n]++}
+ return c;
+}
+function currentGap(a,which,d){
+ let gap=0;
+ for(let i=a.length-1;i>=0;i--){
+  const n=Number(which==='tens'?a[i].tail[0]:a[i].tail[1]);
+  if(n===d) return gap;
+  gap++;
+ }
+ return a.length;
+}
+function longestGap(a,which,d){
+ let max=0,run=0;
+ for(const r of a){const n=Number(which==='tens'?r.tail[0]:r.tail[1]);if(n===d){max=Math.max(max,run);run=0}else run++}
+ return Math.max(max,run);
+}
+function tableHTML(rows,headers){
+ return `<table><thead><tr>${headers.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(x=>`<td>${x}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+function drawChart(c){
+ const cv=$('chart'),ctx=cv.getContext('2d'),w=cv.width,h=cv.height;
+ ctx.clearRect(0,0,w,h);ctx.font='12px sans-serif';ctx.fillStyle='#9eabc7';
+ const max=Math.max(1,...c),left=26,right=8,top=16,bottom=30,usableW=w-left-right,usableH=h-top-bottom;
+ for(let i=0;i<=4;i++){const y=top+usableH*i/4;ctx.strokeStyle='#2b3958';ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-right,y);ctx.stroke();ctx.fillText(String(Math.round(max*(1-i/4))),2,y+4)}
+ const slot=usableW/10,bw=slot*.54;
+ c.forEach((v,i)=>{const bh=v/max*usableH,x=left+i*slot+(slot-bw)/2,y=top+usableH-bh;const gr=ctx.createLinearGradient(0,y,0,top+usableH);gr.addColorStop(0,'#22d3ee');gr.addColorStop(1,'#818cf8');ctx.fillStyle=gr;ctx.fillRect(x,y,bw,bh);ctx.fillStyle='#edf2ff';ctx.textAlign='center';ctx.fillText(String(i),x+bw/2,h-9);});
+}
+function renderFreq(a,which){
+ const c=counts(a,which),n=a.length;
+ let nums=Array.from({length:10},(_,d)=>({d,count:c[d],pct:n?c[d]/n*100:0,gap:currentGap(a,which,d),long:longestGap(a,which,d)}));
+ const sort=$('sort').value;
+ if(sort==='least') nums.sort((x,y)=>x.count-y.count||y.gap-x.gap||x.d-y.d);
+ else if(sort==='most') nums.sort((x,y)=>y.count-x.count||x.d-y.d);
+ else nums.sort((x,y)=>x.d-y.d);
+ $('frequency').innerHTML=tableHTML(nums.map(x=>[
+ `<span class="digit">${x.d}</span>`,`${x.count}`,`${x.pct.toFixed(1)}%`,
+ `<div class="bar"><span style="width:${x.pct}%"></span></div>`,
+ `${x.gap}`,`${x.long}`
+ ]),['Số','Lần xuất hiện','Tỷ lệ','Biểu đồ','Vắng mặt hiện tại','Chuỗi vắng mặt dài nhất']);
+ drawChart(c);
+}
+function renderCompare(a,which){
+ const rows=[20,50,100].map(w=>{
+  const b=a.slice(-w),c=counts(b,which),den=b.length;
+  const min=Math.min(...c);
+  const digits=c.map((n,i)=>({n,i})).filter(x=>x.n===min).map(x=>x.i).join(', ');
+  return [`${w} kỳ`,`${den} kỳ`,digits,den?`${(min/den*100).toFixed(1)}%`:'—',`${Math.max(...c)}`];
+ });
+ $('compare').innerHTML=tableHTML(rows,['Khoảng','Có dữ liệu','Ít xuất hiện nhất','Tỷ lệ thấp nhất','Số lần cao nhất']);
+}
+function renderGaps(a,which,el){
+ const rows=Array.from({length:10},(_,d)=>({d,g:currentGap(a,which,d),l:longestGap(a,which,d)})).sort((x,y)=>y.g-x.g||x.d-y.d);
+ $(el).innerHTML=tableHTML(rows.map(x=>[`<b>${x.d}</b>`,`${x.g} kỳ`,`${x.l} kỳ`]),['Chữ số','Vắng mặt liên tiếp','Chuỗi dài nhất']);
+}
+function renderHistory(a){
+ const n=Number($('historyCount').value);
+ const list=a.slice(-n).reverse();
+ $('history').innerHTML=list.length?tableHTML(list.map((r,i)=>[r.date||'—',r.raw,`<b>${r.tail}</b>`,r.tail[0],r.tail[1]]),['Ngày','Kết quả đọc được','2 số cuối','Chục','Đơn vị']):'<p class="small">Chưa có dữ liệu hợp lệ.</p>';
+}
+function render(){
+ const a=selected(),all=filteredAll();
+ $('total').textContent=a.length;
+ $('latest').textContent=(a.slice().reverse().find(r=>r.date)?.date)||'—';
+ $('tensAbsent').textContent=counts(a,'tens').filter(n=>n===0).length;
+ $('unitsAbsent').textContent=counts(a,'units').filter(n=>n===0).length;
+ $('scope').textContent=`Đang phân tích ${a.length} kết quả; sau bộ lọc ngày còn ${all.length}. Hàng chục/hàng đơn vị được lấy từ hai chữ số cuối.`;
+ renderFreq(a,mode);renderCompare(all,mode);renderGaps(a,'tens','gapsTens');renderGaps(a,'units','gapsUnits');renderHistory(all);
+}
+function setRecords(a,msg){records=normalize(a);render();status(`${msg}\nĐọc được ${records.length} kết quả. Kiểm tra bảng lịch sử để xác nhận bộ phân tích đã lấy đúng số và ngày.`)}
+$('tensTab').onclick=()=>{mode='tens';$('tensTab').classList.add('active');$('unitsTab').classList.remove('active');$('unitsTab').classList.add('secondary');render()};
+$('unitsTab').onclick=()=>{mode='units';$('unitsTab').classList.add('active');$('tensTab').classList.remove('active');$('tensTab').classList.add('secondary');render()};
+['window','sort','from','to','historyCount'].forEach(id=>$(id).addEventListener('change',render));
+$('parseBtn').onclick=()=>{const a=extractRecords($('raw').value);if(!a.length){status('Không tìm thấy kết quả. Hãy dán văn bản có số kết quả rõ ràng, mỗi kỳ một dòng.');return}setRecords(a,'Đã đọc dữ liệu bạn dán.')};
+$('demoBtn').onclick=()=>setRecords(sample,'Đã nạp dữ liệu minh họa — đây KHÔNG phải dữ liệu xổ số thật.');
+$('file').onchange=async e=>{const f=e.target.files[0];if(!f)return;const t=await f.text();$('raw').value=t;const a=extractRecords(t);if(a.length)setRecords(a,`Đã đọc file ${f.name}.`);else status('Không tự nhận diện được dữ liệu trong file. Nội dung đã được đưa vào ô dán để bạn kiểm tra.')};
+$('fetchBtn').onclick=async()=>{
+ const url=$('source').value.trim();if(!/^https?:\/\//i.test(url)){status('Hãy nhập URL http/https hợp lệ.');return}
+ status('Đang thử đọc website trực tiếp…');$('fetchBtn').disabled=true;
+ try{
+  const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),12000);
+  const res=await fetch(url,{method:'GET',mode:'cors',credentials:'omit',signal:ctrl.signal,cache:'no-store'});clearTimeout(timer);
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  const t=await res.text();$('raw').value=t;
+  const a=extractRecords(t);
+  if(!a.length)throw new Error('Trang tải được nhưng không nhận diện được cấu trúc kết quả. Có thể trang dựng nội dung bằng JavaScript hoặc cần bộ phân tích riêng.');
+  setRecords(a,'Tải trực tiếp thành công.'); 
+ }catch(e){
+  status('Không thể tự đọc dữ liệu trực tiếp từ iPhone: '+(e.name==='AbortError'?'quá thời gian chờ':e.message||e)+
+   '\n\nNguyên nhân thường gặp: CORS, trang yêu cầu phiên đăng nhập, hoặc dữ liệu được dựng bằng JavaScript. Bản HTML tĩnh không thể tự vượt qua các giới hạn này.\n\nPhương án tự động: triển khai proxy/backend do bạn kiểm soát theo README, rồi dùng URL proxy làm nguồn. Tạm thời, dán hoặc tải file lịch sử vào tool.');
+ }finally{$('fetchBtn').disabled=false}
+};
+$('exportBtn').onclick=()=>{
+ const a=selected();const rows=[['date','original_result','last_two_digits','tens','units'],...a.map(r=>[r.date,r.raw,r.tail,r.tail[0],r.tail[1]])];
+ const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+ const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob);
+ const link=document.createElement('a');link.href=url;link.download='lottery-digit-history.csv';link.click();URL.revokeObjectURL(url);
+};
+render();
+})();
+</script></body></html>
